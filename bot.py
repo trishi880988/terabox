@@ -1,39 +1,43 @@
-import os
-import requests
-from pyrogram import Client, filters
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+import re
+import logging
 
-# ✅ Bot Configuration
-API_ID = int(os.getenv("API_ID", "123456"))
-API_HASH = os.getenv("API_HASH", "your_api_hash")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "your_bot_token")
+# Enable logging
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# ✅ Pyrogram Client
-bot = Client("TeraBoxBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# Function to convert TeraBox link to a playable link
+def get_playable_link(original_link: str) -> str:
+    encoded_link = original_link.replace('https://', '').replace('/', '%2F')
+    return f"https://player.terabox.tech/?url=https%3A%2F%2F{encoded_link}"
 
-# ✅ TeraBox Direct Link Function
-def get_direct_link(terabox_url):
-    response = requests.get(f"https://api.example.com/getlink?url={terabox_url}")
-    if response.status_code == 200:
-        return response.json().get("direct_link")
-    return None
+# Start command handler
+def start(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text("Send me a TeraBox link, and I'll generate a direct playable link for you!")
 
-# ✅ Command to Handle TeraBox Links
-@bot.on_message(filters.command("start") & filters.private)
-def start(client, message):
-    message.reply_text("👋 Welcome! Send me a TeraBox link, and I'll get a direct playable link for you.")
-
-@bot.on_message(filters.text & filters.private)
-def fetch_link(client, message):
-    url = message.text.strip()
-    if "terabox.com" in url:
-        direct_link = get_direct_link(url)
-        if direct_link:
-            message.reply_text(f"🎥 Here is your direct playable link:\n{direct_link}")
-        else:
-            message.reply_text("⚠️ Failed to generate a direct link. Please try again later.")
+# Message handler for extracting TeraBox links
+def handle_message(update: Update, context: CallbackContext) -> None:
+    text = update.message.text
+    match = re.search(r'https?://(?:www\.)?1024terabox\.com/s/\S+', text)
+    if match:
+        original_link = match.group()
+        playable_link = get_playable_link(original_link)
+        update.message.reply_text(f"🎉 Here's your link:\n\n🔗 Original Link: {original_link}\n\n▶️ Player Link: {playable_link}")
     else:
-        message.reply_text("❌ Please send a valid TeraBox link.")
+        update.message.reply_text("Please send a valid TeraBox link.")
 
-# ✅ Start Bot
-print("🤖 Bot is running...")
-bot.run()
+# Main function to start the bot
+def main():
+    TOKEN = "YOUR_BOT_TOKEN"  # Replace with your bot's token
+    updater = Updater(TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()

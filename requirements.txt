@@ -1,5 +1,2 @@
-python-telegram-bot
-pymongo
-requests
-flask
-gunicorn
+pyrogram
+tgcrypto

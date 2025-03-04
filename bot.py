@@ -1,64 +1,58 @@
 import os
-import requests
+import logging
+import pymongo
 from telegram import Update, ParseMode
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-# ⬇️ Bot Token & Config
+# Enable logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Load environment variables
 TOKEN = os.getenv("BOT_TOKEN")
-PORT = int(os.environ.get("PORT", 8443))
+MONGO_URI = os.getenv("MONGO_URI")
 
-# ⬇️ TeraBox Direct Video Link Generator
-def generate_link(original_link):
-    try:
-        encoded_url = requests.utils.quote(original_link, safe="")
-        direct_link = f"https://player.terabox.tech/?url={encoded_url}"
-        return direct_link
-    except Exception as e:
-        return None
+# MongoDB setup
+client = pymongo.MongoClient(MONGO_URI)
+db = client['terabox_bot']
+users_col = db['users']
 
-# ⬇️ Start Command
+# Function to generate playable link
+def generate_link(terabox_link):
+    encoded_link = terabox_link.replace("https://1024terabox.com/s/", "")
+    return f"https://player.terabox.tech/?url=https%3A%2F%2F1024terabox.com%2Fs%2F{encoded_link}"
+
+# Start command
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        "**Welcome to TeraBox Video Link Bot! 🎬**\n\n"
-        "Just send me a **TeraBox link**, and I'll generate a **direct playable link** for you. 🚀",
-        parse_mode=ParseMode.MARKDOWN
-    )
+    user = update.message.from_user
+    users_col.update_one({"user_id": user.id}, {"$set": {"username": user.username}}, upsert=True)
+    update.message.reply_text("👋 Welcome! Send a TeraBox link to get a direct playable link.")
 
-# ⬇️ Handle TeraBox Links
+# Handle messages
 def handle_message(update: Update, context: CallbackContext):
-    text = update.message.text
-
-    if "terabox.com" in text:
-        direct_link = generate_link(text)
-
-        if direct_link:
-            response = (
-                f"🎉 **Here's your link:**\n\n"
-                f"🔗 **Original Link:** {text}\n\n"
-                f"▶️ **Player Link:** {direct_link}\n\n"
-                f"**Bot developed by Gaurav Rajput**\n"
-                f"👉 Join - @skillwithgaurav"
-            )
-        else:
-            response = "❌ **Error:** Unable to generate the direct link."
-
+    text = update.message.text.strip()
+    if "terabox.com/s/" in text:
+        playable_link = generate_link(text)
+        response = (f"🎉 *Here's your link:*
+"
+                    f"🔗 *Original Link:* {text}\n"
+                    f"▶️ *Player Link:* {playable_link}\n\n"
+                    f"*Bot developed by Gaurav Rajput*\n"
+                    f"Join - @skillwithgaurav")
         update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN)
     else:
-        update.message.reply_text("❌ **Error:** Please send a valid **TeraBox link**.")
+        update.message.reply_text("❌ Please send a valid TeraBox link.")
 
-# ⬇️ Main Function
+# Main function
 def main():
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
-
+    
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-
-    # Deploy for Heroku
-    updater.start_webhook(listen="0.0.0.0", port=PORT, url_path=TOKEN)
-    updater.bot.setWebhook(f"https://{os.getenv('HEROKU_APP_NAME')}.herokuapp.com/{TOKEN}")
-
+    
+    updater.start_polling()
     updater.idle()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

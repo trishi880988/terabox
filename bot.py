@@ -4,7 +4,7 @@ from pyrogram import Client, filters
 import requests
 
 # Logging setup
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("TeraBoxBot")
 
 # Bot credentials (Set these in Heroku/Koyeb environment variables)
@@ -32,24 +32,16 @@ def get_video_link(client, message):
     message.reply_text("🔄 Fetching playable link, please wait...")
     try:
         response = requests.get(TERABOX_API + terabox_link)
-        response.raise_for_status()  # Raise an error for bad status codes
         data = response.json()
         if "error" in data:
             message.reply_text("❌ Failed to get video. Please check the link and try again.")
         else:
             playable_link = data.get("direct_link", "")
-            if playable_link:
-                message.reply_text(f"✅ Here is your video link:\n[Click to Play]({playable_link})", disable_web_page_preview=True)
-            else:
-                message.reply_text("❌ No playable link found. Please check the link and try again.")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching video link: {e}")
-        message.reply_text("❌ Something went wrong while fetching the link. Please try again later.")
+            message.reply_text(f"✅ Here is your video link:\n[Click to Play]({playable_link})", disable_web_page_preview=True)
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
+        logger.error(f"Error fetching video link: {e}")
         message.reply_text("❌ Something went wrong. Please try again later.")
 
 # Start bot
 if __name__ == "__main__":
-    logger.info("Starting TeraBox Bot...")
     bot.run()

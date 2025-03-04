@@ -1,8 +1,8 @@
 import os
 import logging
 import pymongo
-from telegram import Update, ParseMode
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -23,36 +23,33 @@ def generate_link(terabox_link):
     return f"https://player.terabox.tech/?url=https%3A%2F%2F1024terabox.com%2Fs%2F{encoded_link}"
 
 # Start command
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: CallbackContext):
     user = update.message.from_user
     users_col.update_one({"user_id": user.id}, {"$set": {"username": user.username}}, upsert=True)
-    update.message.reply_text("👋 Welcome! Send a TeraBox link to get a direct playable link.")
+    await update.message.reply_text("👋 Welcome! Send a TeraBox link to get a direct playable link.")
 
 # Handle messages
-def handle_message(update: Update, context: CallbackContext):
+async def handle_message(update: Update, context: CallbackContext):
     text = update.message.text.strip()
     if "terabox.com/s/" in text:
         playable_link = generate_link(text)
-        response = (f"🎉 *Here's your link:*
-"
+        response = (f"🎉 *Here's your link:*\n\n"
                     f"🔗 *Original Link:* {text}\n"
                     f"▶️ *Player Link:* {playable_link}\n\n"
-                    f"*Bot developed by Gaurav Rajput*\n"
+                    f"**Bot developed by Gaurav Rajput**\n"
                     f"Join - @skillwithgaurav")
-        update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(response, parse_mode="Markdown")
     else:
-        update.message.reply_text("❌ Please send a valid TeraBox link.")
+        await update.message.reply_text("❌ Please send a valid TeraBox link.")
 
 # Main function
 def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+    app = Application.builder().token(TOKEN).build()
     
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    updater.start_polling()
-    updater.idle()
+    app.run_polling()
 
 if __name__ == '__main__':
     main()

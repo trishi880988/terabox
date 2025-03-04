@@ -1,56 +1,63 @@
 import os
-import re
-import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+import requests
+from telegram import Update, ParseMode
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-# Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Bot Token from environment variable
+# ⬇️ Bot Token & Config
 TOKEN = os.getenv("BOT_TOKEN")
+PORT = int(os.environ.get("PORT", 8443))
 
-# Function to generate player link
-def generate_player_link(terabox_link: str) -> str:
-    encoded_link = terabox_link.replace("https://", "").replace("/", "%2F")
-    return f"https://player.terabox.tech/?url=https%3A%2F%2F{encoded_link}"
+# ⬇️ TeraBox Direct Video Link Generator
+def generate_link(original_link):
+    try:
+        encoded_url = requests.utils.quote(original_link, safe="")
+        direct_link = f"https://player.terabox.tech/?url={encoded_url}"
+        return direct_link
+    except Exception as e:
+        return None
 
-# Start command handler
-def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text("Send me a TeraBox link, and I'll generate a direct player link for you!")
+# ⬇️ Start Command
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        "**Welcome to TeraBox Video Link Bot! 🎬**\n\n"
+        "Just send me a **TeraBox link**, and I'll generate a **direct playable link** for you. 🚀",
+        parse_mode=ParseMode.MARKDOWN
+    )
 
-# Message handler to process TeraBox links
-def handle_message(update: Update, context: CallbackContext) -> None:
+# ⬇️ Handle TeraBox Links
+def handle_message(update: Update, context: CallbackContext):
     text = update.message.text
-    match = re.search(r'https?://1024terabox\.com/s/\S+', text)
-    
-    if match:
-        original_link = match.group()
-        player_link = generate_player_link(original_link)
-        
-        keyboard = [[InlineKeyboardButton("▶️ Watch Now", url=player_link)]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        response = (f"\n\n<b>🎉 Here's your link:</b>\n\n"
-                    f"🔗 <b>Original Link:</b> <code>{original_link}</code>\n\n"
-                    f"▶️ <b>Player Link:</b> <a href='{player_link}'>Click Here to Watch</a>\n\n"
-                    f"<b>Bot developed by Gaurav Rajput</b>\n"
-                    f"Join - @skillwithgaurav")
-        
-        update.message.reply_text(response, reply_markup=reply_markup, parse_mode="HTML")
-    else:
-        update.message.reply_text("❌ Invalid TeraBox link. Please send a valid one!")
 
-# Main function to start bot
+    if "terabox.com" in text:
+        direct_link = generate_link(text)
+
+        if direct_link:
+            response = (
+                f"🎉 **Here's your link:**\n\n"
+                f"🔗 **Original Link:** {text}\n\n"
+                f"▶️ **Player Link:** {direct_link}\n\n"
+                f"**Bot developed by Gaurav Rajput**\n"
+                f"👉 Join - @skillwithgaurav"
+            )
+        else:
+            response = "❌ **Error:** Unable to generate the direct link."
+
+        update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN)
+    else:
+        update.message.reply_text("❌ **Error:** Please send a valid **TeraBox link**.")
+
+# ⬇️ Main Function
 def main():
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
-    
+
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-    
-    updater.start_polling()
+
+    # Deploy for Heroku
+    updater.start_webhook(listen="0.0.0.0", port=PORT, url_path=TOKEN)
+    updater.bot.setWebhook(f"https://{os.getenv('HEROKU_APP_NAME')}.herokuapp.com/{TOKEN}")
+
     updater.idle()
 
 if __name__ == "__main__":

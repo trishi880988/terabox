@@ -1,2 +1,5 @@
-pyrogram
+python-telegram-bot
+pymongo
 requests
+flask
+gunicorn
